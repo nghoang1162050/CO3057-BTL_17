@@ -37,6 +37,22 @@ def ensure_dir(path):
     return path
 
 
+def load_image(path):
+    """Read an image file as RGB uint8."""
+    img = cv2.imread(path, cv2.IMREAD_COLOR)
+    if img is None:
+        raise FileNotFoundError(f"Could not read image: {path}")
+    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+
+def load_mask(path):
+    """Read a mask file as a single-channel uint8 array."""
+    mask = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+    if mask is None:
+        raise FileNotFoundError(f"Could not read mask: {path}")
+    return mask
+
+
 def save_image(path, img):
     """Convert RGB to BGR only when writing with OpenCV."""
     ensure_dir(os.path.dirname(path))

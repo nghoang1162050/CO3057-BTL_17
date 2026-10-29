@@ -3,3 +3,9 @@ __pycache__/
 .ipynb_checkpoints/
 .venv/
 venv/
+
+# large panorama intermediates (regenerate with src/p2_panorama.py)
+outputs/p2_panorama*/01_*
+outputs/p2_panorama*/02_*
+outputs/p2_panorama*/03_*
+outputs/p2_panorama*/05_*
