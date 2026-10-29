@@ -168,6 +168,17 @@ def feathered_paste(background, source, mask, offset, feather_px=12):
     return np.clip(out, 0, 255).astype(np.uint8)
 
 
+def full_size_mask(shape_hw, mask, offset):
+    """Place `mask` at `offset` inside an otherwise empty array of the background's size."""
+    full = np.zeros(shape_hw, dtype=np.uint8)
+    by, bx = offset
+    full[by:by + mask.shape[0], bx:bx + mask.shape[1]] = mask
+    return full
+
+
+_full_size_mask = full_size_mask  # name used by the notebooks
+
+
 def boundary_ring(mask, radius=3):
     kernel = np.ones((3, 3), np.uint8)
     return (cv2.dilate(mask, kernel, iterations=radius) > 0) & (cv2.erode(mask, kernel, iterations=radius) == 0)
@@ -196,9 +207,7 @@ def run(data_dir=DATA_DIR, out_dir=OUT_DIR):
 
     by, bx = offset
     sh, sw = mask.shape
-    full_mask = np.zeros(background.shape[:2], dtype=np.uint8)
-    full_mask[by:by + sh, bx:bx + sw] = mask
-    ring = boundary_ring(full_mask)
+    ring = boundary_ring(full_size_mask(background.shape[:2], mask, offset))
     scores = {
         "background alone (reference)": seam_score(background, ring),
         "naive cut-paste": seam_score(naive, ring),

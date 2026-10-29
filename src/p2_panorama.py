@@ -24,6 +24,36 @@ def load_views(data_dir=DATA_DIR):
     return [load_image(os.path.join(data_dir, f)) for f in files]
 
 
+def build_ground_truth_scene(height=360):
+    """Wide scene from four scikit-image photos, used to synthesize views with a known layout."""
+    from skimage import data, img_as_ubyte
+
+    imgs = [img_as_ubyte(data.astronaut()), img_as_ubyte(data.coffee()),
+            img_as_ubyte(data.chelsea()), img_as_ubyte(data.rocket())]
+    return np.hstack([cv2.resize(im, (int(im.shape[1] * height / im.shape[0]), height)) for im in imgs])
+
+
+def _jitter_homography(w, h, jitter_frac, seed):
+    """Mild random perspective warp of the image's own corners."""
+    rng = np.random.default_rng(seed)
+    src = np.float32([[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1]])
+    dst = src + (rng.random((4, 2)).astype(np.float32) - 0.5) * 2 * jitter_frac * np.array([w, h], dtype=np.float32)
+    return cv2.getPerspectiveTransform(src, dst)
+
+
+def synthesize_views(scene, n_views=4, view_width=480, overlap=0.42, jitter_frac=0.05, seed=0):
+    """Overlapping, perspective-jittered crops of `scene`, as if the camera panned across it."""
+    h, sw = scene.shape[:2]
+    step = int(view_width * (1 - overlap))
+    views = []
+    for i in range(n_views):
+        x0 = min(i * step, sw - view_width)
+        H = _jitter_homography(view_width, h, jitter_frac, seed + i)
+        views.append(cv2.warpPerspective(scene[:, x0:x0 + view_width].copy(), H, (view_width, h),
+                                         borderMode=cv2.BORDER_REPLICATE))
+    return views
+
+
 def detect_and_describe(img, method):
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     detector = cv2.SIFT_create() if method == "sift" else cv2.ORB_create(nfeatures=2000)
@@ -65,7 +95,8 @@ def feather_blend(canvas, canvas_mask, warped, warped_mask):
     return np.clip(out, 0, 255).astype(np.uint8)
 
 
-def stitch_sequence(images, method="sift", ratio=0.75, ransac_thresh=4.0, max_matches_drawn=60):
+def stitch_sequence(images, method="sift", ratio=0.75, ransac_thresh=4.0, max_matches_drawn=60, blend="feather"):
+    """blend: "feather" (distance-weighted overlaps) or "overwrite" (later views cover earlier ones)."""
     keypoints, descriptors = zip(*(detect_and_describe(img, method) for img in images))
 
     H_ref = [np.eye(3)]  # view i -> view 0
@@ -95,7 +126,10 @@ def stitch_sequence(images, method="sift", ratio=0.75, ransac_thresh=4.0, max_ma
     for img, H in zip(images, H_ref):
         warped = cv2.warpPerspective(img, T @ H, size)
         warped_mask = cv2.warpPerspective(np.full(img.shape[:2], 255, np.uint8), T @ H, size)
-        canvas = feather_blend(canvas, canvas_mask, warped, warped_mask)
+        if blend == "feather":
+            canvas = feather_blend(canvas, canvas_mask, warped, warped_mask)
+        else:
+            canvas[warped_mask > 0] = warped[warped_mask > 0]
         canvas_mask = cv2.bitwise_or(canvas_mask, warped_mask)
 
     return {
@@ -106,6 +140,7 @@ def stitch_sequence(images, method="sift", ratio=0.75, ransac_thresh=4.0, max_ma
                                         flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
                         for i in range(1, len(images))],
         "pair_stats": pair_stats,
+        "homographies": H_ref,  # view i -> view 0 frame
         "keypoint_counts": [len(kp) for kp in keypoints],
     }
 

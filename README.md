@@ -79,7 +79,8 @@ Guidelines: [`docs/CV-project-tonghop.pdf`](docs/CV-project-tonghop.pdf).
 - `src/tonghop_pipeline.py` (3.4): runs the stages and saves the before/after figures.
 
 ```bash
-python src/tonghop_pipeline.py              # data/tonghop_scene/ban_cong.jpg
+python src/tonghop_pipeline.py              # scikit-image `camera` sample
+python src/tonghop_pipeline.py --data data/tonghop_scene_ban_cong --out outputs/tonghop_scene_ban_cong   # our balcony photo
 ```
 
-With an empty `data/tonghop_scene/`, the pipeline uses the `camera` sample from `scikit-image`.
+With an empty `data/tonghop_scene/` the pipeline uses the `camera` sample from `scikit-image`; drop a photo there to analyze it instead.
